@@ -116,6 +116,38 @@ func parseSelectColumn(key reflect.StructField, val reflect.Value) (column strin
 	return
 }
 
+func parseUpdateColumnAndValue(key reflect.StructField, val reflect.Value) (column string, exist bool, value interface{}, err error) {
+	tag, exist := key.Tag.Lookup("update")
+	if !exist {
+		return
+	}
+	// 如果当前值不能转换成interface，返回错误信息
+	if !val.CanInterface() {
+		err = fmt.Errorf("condition field %s can not interfaced", key.Name)
+		return
+	}
+	column, omitempty := parseUpdateColumn(tag)
+	if column == "" {
+		err = fmt.Errorf("column tag value can not be empty")
+		return
+	}
+	// 如果忽略空，并且val是对应的零值 直接返回
+	if omitempty && val.IsZero() {
+		return
+	}
+	value = val.Interface()
+	return
+}
+
+func parseUpdateColumn(tag string) (column string, omitempty bool) {
+	s2 := strings.SplitN(tag, ",", 2)
+	column = s2[0]
+	if len(s2) == 2 && s2[1] == "omitempty" {
+		omitempty = true
+	}
+	return
+}
+
 // parse方法用于解析结构体中的where标签，并将解析结果添加到条件表达式中。
 func parseCondition(key reflect.StructField, val reflect.Value) (condition squirrel.Sqlizer, exist bool, err error) {
 	tag, exist := key.Tag.Lookup("where")

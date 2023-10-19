@@ -29,7 +29,19 @@ func Convert2InsertSql(s interface{}) (sql string, data []interface{}, err error
 	return
 }
 
-func Convert2UpdateSql() {}
+func Convert2UpdateSql(s interface{}) (sql string, data []interface{}, err error) {
+	updateconverter := updateconverter{
+		columnValueMap: make(map[string]interface{}),
+		conditions:     make([]squirrel.Sqlizer, 0),
+		order:          make([]string, 0),
+	}
+	err = parse(&updateconverter, s)
+	if err != nil {
+		return
+	}
+	sql, data, err = updateconverter.toSql()
+	return
+}
 
 func Convert2DeleteSql(s interface{}) (sql string, data []interface{}, err error) {
 	deleteconverter := deleteconverter{
