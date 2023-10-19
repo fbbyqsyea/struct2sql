@@ -1,6 +1,20 @@
 package struct2sql
 
-func Convert2SelectSql() {}
+import "github.com/Masterminds/squirrel"
+
+func Convert2SelectSql(s interface{}) (sql string, data []interface{}, err error) {
+	selectconverter := selectconverter{
+		columns:    make([]string, 0),
+		conditions: make([]squirrel.Sqlizer, 0),
+		order:      make([]string, 0),
+	}
+	err = parse(&selectconverter, s)
+	if err != nil {
+		return
+	}
+	sql, data, err = selectconverter.toSql()
+	return
+}
 
 func Convert2InsertSql(s interface{}) (sql string, data []interface{}, err error) {
 	insertconverter := insertconverter{
@@ -11,7 +25,8 @@ func Convert2InsertSql(s interface{}) (sql string, data []interface{}, err error
 	if err != nil {
 		return
 	}
-	return insertconverter.toSql()
+	sql, data, err = insertconverter.toSql()
+	return
 }
 
 func Convert2UpdateSql() {}

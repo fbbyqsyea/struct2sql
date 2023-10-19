@@ -3,7 +3,6 @@ package struct2sql
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/Masterminds/squirrel"
 )
@@ -15,53 +14,39 @@ type insertconverter struct {
 }
 
 func (c *insertconverter) parse(key reflect.StructField, val reflect.Value) (err error) {
-	if tag := key.Tag.Get("table"); tag != "" {
-		if c.table != "" {
-			err = fmt.Errorf("table tag duplicate definition")
+	// table
+	if table, exist, serr := parseTable(key, val); exist {
+		if serr != nil {
+			err = serr
 			return
 		}
-		c.table = tag
+		c.table = table
 	}
-	if tag := key.Tag.Get("insert"); tag != "" {
-		column, omitempty := c.parseInsertColumn(tag)
-		if column == "" {
-			err = fmt.Errorf("field %s 's insert column can not be empty", key.Name)
-			return
-		}
-		if !val.CanInterface() {
-			err = fmt.Errorf("field %s 's value can not interfaced", key.Name)
-			return
-		}
-		if !omitempty && val.IsZero() {
-			err = fmt.Errorf("field %s 's insert value can not be empty", key.Name)
+	// column and value
+	if column, exist, value, serr := parseInsertColumnAndValue(key, val); exist {
+		if serr != nil {
+			err = serr
 			return
 		}
 		c.columns = append(c.columns, column)
-		c.values = append(c.values, val.Interface())
+		c.values = append(c.values, value)
 	}
 	return
 }
 
-func (c *insertconverter) parseInsertColumn(it string) (column string, omitempty bool) {
-	s2 := strings.SplitN(it, ",", 2)
-	column = s2[0]
-	if len(s2) == 2 && s2[1] == "omitempty" {
-		omitempty = true
-	}
-	return
-}
 func (c *insertconverter) toSql() (sql string, data []interface{}, err error) {
-
+	// table check
 	if c.table == "" {
 		err = fmt.Errorf("table can not be empty")
 		return
 	}
 
+	// column length check
 	if len(c.columns) == 0 {
 		err = fmt.Errorf("no insert columns")
 		return
 	}
-
+	// generate sql
 	sql, data, err = squirrel.Insert(c.table).Columns(c.columns...).Values(c.values...).ToSql()
 	return
 }

@@ -1,7 +1,11 @@
 package struct2sql
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
+
+	"github.com/Masterminds/squirrel"
 )
 
 // 定义接口 parser，用于解析结构体字段
@@ -53,7 +57,151 @@ func valueElem(value reflect.Value) reflect.Value {
 	return value
 }
 
-func parseTable(key reflect.StructField, val reflect.Value) (table string) {
-	table = key.Tag.Get("table")
+func parseTable(key reflect.StructField, val reflect.Value) (table string, exist bool, err error) {
+	table, exist = key.Tag.Lookup("table")
+	if !exist {
+		return
+	}
+	if table == "" {
+		err = fmt.Errorf("table tag value can not be empty")
+		return
+	}
+	return
+}
+
+func parseInsertColumnAndValue(key reflect.StructField, val reflect.Value) (column string, exist bool, value interface{}, err error) {
+	column, exist = key.Tag.Lookup("insert")
+	if !exist {
+		return
+	}
+	if column == "" {
+		err = fmt.Errorf("column tag value can not be empty")
+		return
+	}
+	column, omitempty := parseInsertColumn(column)
+	if column == "" {
+		err = fmt.Errorf("field %s 's insert column can not be empty", key.Name)
+		return
+	}
+	if !val.CanInterface() {
+		err = fmt.Errorf("field %s 's value can not interfaced", key.Name)
+		return
+	}
+	if !omitempty && val.IsZero() {
+		err = fmt.Errorf("field %s 's insert value can not be empty", key.Name)
+		return
+	}
+	value = val.Interface()
+	return
+}
+
+func parseInsertColumn(tag string) (column string, omitempty bool) {
+	s2 := strings.SplitN(tag, ",", 2)
+	column = s2[0]
+	if len(s2) == 2 && s2[1] == "omitempty" {
+		omitempty = true
+	}
+	return
+}
+
+func parseSelectColumn(key reflect.StructField, val reflect.Value) (column string, exist bool, err error) {
+	column, exist = key.Tag.Lookup("select")
+	if !exist {
+		return
+	}
+	if column == "" {
+		err = fmt.Errorf("column tag value can not be empty")
+		return
+	}
+	return
+}
+
+// parse方法用于解析结构体中的where标签，并将解析结果添加到条件表达式中。
+func parseCondition(key reflect.StructField, val reflect.Value) (condition squirrel.Sqlizer, exist bool, err error) {
+	tag, exist := key.Tag.Lookup("where")
+	if !exist {
+		return
+	}
+	// 如果当前值不能转换成interface，返回错误信息
+	if !val.CanInterface() {
+		err = fmt.Errorf("condition field %s can not interfaced", key.Name)
+		return
+	}
+	column, expression, omitempty := parseConditionColumn(tag)
+	// 如果忽略空，并且val是对应的零值 直接返回
+	if omitempty && val.IsZero() {
+		return
+	}
+	switch {
+	case strings.Contains(expression, "like"):
+		condition = squirrel.Expr(column+" "+expression+" ?", fmt.Sprintf("%%%s%%", val.Interface()))
+	case strings.Contains(expression, "plike"):
+		condition = squirrel.Expr(column+" "+expression+" ?", fmt.Sprintf("%%%s", val.Interface()))
+	case strings.Contains(expression, "slike"):
+		condition = squirrel.Expr(column+" "+expression+" ?", fmt.Sprintf("%s%%", val.Interface()))
+	default:
+		condition = squirrel.Expr(column+" "+expression+" ?", val.Interface())
+	}
+	return
+}
+
+func parseConditionColumn(tag string) (column string, expression string, omitempty bool) {
+	s3 := strings.SplitN(tag, ",", 3)
+	column = s3[0]
+	if len(s3) == 3 {
+		expression = s3[1]
+		if s3[2] == "omitempty" {
+			omitempty = true
+		}
+	} else if len(s3) == 2 {
+		expression = s3[1]
+	} else {
+		expression = "="
+	}
+	return
+}
+
+func parseOrder(key reflect.StructField, val reflect.Value) (order string, exist bool, err error) {
+	order, exist = key.Tag.Lookup("order")
+	if !exist {
+		return
+	}
+	if order == "" {
+		err = fmt.Errorf("order tag value can not be empty")
+		return
+	}
+	return
+}
+func parseOffset(key reflect.StructField, val reflect.Value) (offset uint64, exist bool, err error) {
+	_, exist = key.Tag.Lookup("offset")
+	if !exist {
+		return
+	}
+	if !val.CanInterface() {
+		err = fmt.Errorf("offset value can not convert to interface")
+		return
+	}
+	value := val.Interface()
+	offset, ok := value.(uint64)
+	if !ok {
+		err = fmt.Errorf("offset type is not expected, expect uint64, given %v", val.Type())
+	}
+	return
+}
+
+func parseLimit(key reflect.StructField, val reflect.Value) (limit uint64, exist bool, err error) {
+	_, exist = key.Tag.Lookup("limit")
+	if !exist {
+		return
+	}
+	if !val.CanInterface() {
+		err = fmt.Errorf("limit value can not convert to interface")
+		return
+	}
+	value := val.Interface()
+	limit, ok := value.(uint64)
+	if !ok {
+		err = fmt.Errorf("limit type is not expected, expect uint64, given %v", val.Type())
+	}
 	return
 }
