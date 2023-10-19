@@ -115,3 +115,66 @@ func TestConvert2SelectSqlWithOrderAndLimitOffset(t *testing.T) {
 		t.Errorf("Expected SQL: %s, but got: %s", expectedSQL, sql)
 	}
 }
+
+type TestDeleteStruct struct {
+	ID    int    `where:"id,=,omitempty"`
+	Name  string ` where:"name"`
+	_     string `table:"my_table"`
+	_     string `order:"id desc"`
+	Limit uint64 `limit:""`
+}
+
+func TestConvert2DeleteSql(t *testing.T) {
+	testStruct := TestDeleteStruct{
+		ID:   1,
+		Name: "John",
+	}
+
+	sql, data, err := Convert2DeleteSql(testStruct)
+
+	if err != nil {
+		t.Errorf("Expected no error, but got: %v", err)
+	}
+
+	// 验证生成的 SQL 语句
+	expectedSQL := "DELETE FROM my_table WHERE id = ? AND name = ? ORDER BY id desc"
+	if sql != expectedSQL {
+		t.Errorf("Expected SQL: %s, but got: %s", expectedSQL, sql)
+	}
+
+	// 验证生成的数据
+	expectedData := []interface{}{1, "John"}
+	for i := 0; i < len(expectedData); i++ {
+		if data[i] != expectedData[i] {
+			t.Errorf("Expected data: %v, but got: %v", expectedData, data)
+			break
+		}
+	}
+}
+func TestConvert2DeleteSqlWithOrderAndLimit(t *testing.T) {
+	testStruct := TestDeleteStruct{
+		Name:  "John",
+		Limit: 10,
+	}
+
+	sql, data, err := Convert2DeleteSql(testStruct)
+
+	if err != nil {
+		t.Errorf("Expected no error, but got: %v", err)
+	}
+
+	// 验证生成的 SQL 语句
+	expectedSQL := "DELETE FROM my_table WHERE  AND name = ? ORDER BY id desc LIMIT 10"
+	if sql != expectedSQL {
+		t.Errorf("Expected SQL: %s, but got: %s", expectedSQL, sql)
+	}
+
+	// 验证生成的数据
+	expectedData := []interface{}{"John"}
+	for i := 0; i < len(expectedData); i++ {
+		if data[i] != expectedData[i] {
+			t.Errorf("Expected data: %v, but got: %v", expectedData, data)
+			break
+		}
+	}
+}
